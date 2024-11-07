@@ -1,23 +1,8 @@
+#include <gtkmm.h>
+#include <glibmm.h>
 #include <iostream>
 #include <fstream>
-#include <string>
-#include <gtkmm/application.h>
-#include <gtkmm/window.h>
-#include <gtkmm/button.h>
-#include <gtkmm/box.h>
-#include <gtkmm/checkbutton.h>
-#include <gtkmm/spinner.h>
-#include <gtkmm/image.h>
-#include <gtkmm/cssprovider.h>
-#include <gtkmm/stylecontext.h>
-#include <gtkmm/overlay.h>
-#include <gtkmm/label.h>
-#include <gtkmm/entry.h>
-#include <gtkmm/textview.h>
-#include <gtkmm/scrolledwindow.h>
-#include <glibmm/spawn.h>
-#include <glibmm/main.h>
-#include <glibmm/iochannel.h>
+#include <sstream>
 
 class PackageManagerApp : public Gtk::Application {
 protected:
@@ -25,6 +10,8 @@ protected:
 
     void on_startup() override {
         Gtk::Application::on_startup();
+
+        // Hauptfenster
         auto* window = new Gtk::Window();
         window->set_default_size(800, 600);
         window->set_title("Package Manager");
@@ -32,9 +19,11 @@ protected:
         auto* vbox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 5);
         window->set_child(*vbox);
 
+        // Horizontale Box für Buttons
         auto* hbox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 5);
         vbox->append(*hbox);
 
+        // Auswahl-Button für Paketmanager
         auto* button = Gtk::make_managed<Gtk::Button>("Select Package Manager");
         button->set_size_request(200, 50);
         button->set_margin_top(10);
@@ -42,30 +31,17 @@ protected:
         button->signal_clicked().connect(sigc::mem_fun(*this, &PackageManagerApp::on_button_clicked));
         hbox->append(*button);
 
-        auto* check_button = Gtk::make_managed<Gtk::Button>();
-        check_button->set_size_request(50, 50);
-        check_button->set_margin_top(10);
-        check_button->set_margin_start(10);
-        auto* check_image = Gtk::make_managed<Gtk::Image>("checkmark.png");
-        check_button->set_child(*check_image);
-        check_button->get_style_context()->add_class("green-check");
-        check_button->signal_clicked().connect(sigc::bind(sigc::mem_fun(*this, &PackageManagerApp::on_check_button_clicked), check_button));
-        hbox->append(*check_button);
-
+        // Terminal-Button zum Zeigen des Terminal-Bereichs
         auto* terminal_button = Gtk::make_managed<Gtk::Button>("Show Terminal");
         terminal_button->set_halign(Gtk::Align::CENTER);
         terminal_button->signal_clicked().connect(sigc::mem_fun(*this, &PackageManagerApp::on_terminal_button_clicked));
         vbox->append(*terminal_button);
 
-        terminal_area = Gtk::make_managed<Gtk::ScrolledWindow>();
-        terminal_area->set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
+        // Textbereich für Terminal-Ausgabe
+        terminal_area = Gtk::make_managed<Gtk::TextView>();
+        terminal_area->set_wrap_mode(Gtk::WrapMode::WORD_CHAR);
         terminal_area->set_visible(false);
         vbox->append(*terminal_area);
-
-        terminal_view = Gtk::make_managed<Gtk::TextView>();
-        terminal_view->set_editable(false);
-        terminal_view->set_wrap_mode(Gtk::WrapMode::WORD);
-        terminal_area->set_child(*terminal_view);
 
         add_window(*window);
         window->show();
@@ -77,13 +53,15 @@ protected:
     }
 
     void on_button_clicked() {
+        // Popup-Fenster für Paketmanager-Auswahl
         auto* popup = new Gtk::Window();
         popup->set_default_size(400, 300);
-        popup->set_title("");
+        popup->set_title("Select Package Manager");
 
         auto* vbox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 5);
         popup->set_child(*vbox);
 
+        // Checkboxen für verschiedene Paketmanager
         auto* checkbox1 = Gtk::make_managed<Gtk::CheckButton>("paru");
         auto* checkbox2 = Gtk::make_managed<Gtk::CheckButton>("yay");
         auto* checkbox3 = Gtk::make_managed<Gtk::CheckButton>("flatpak");
@@ -98,6 +76,7 @@ protected:
         auto* hbox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL, 5);
         vbox->append(*hbox);
 
+        // Apply- und Cancel-Buttons für Auswahl
         auto* apply_button = Gtk::make_managed<Gtk::Button>("Apply");
         apply_button->get_style_context()->add_class("suggested-action");
         apply_button->signal_clicked().connect([this, checkbox1, checkbox2, checkbox3, checkbox4]() {
@@ -114,46 +93,36 @@ protected:
         popup->show();
     }
 
-    static void on_check_button_clicked(Gtk::Button* button) {
-        button->set_sensitive(false);
-
-        auto* spinner = Gtk::make_managed<Gtk::Spinner>();
-        button->set_child(*spinner);
-        spinner->start();
-
-        Glib::RefPtr<Glib::IOChannel> io_channel;
-        Glib::Pid pid;
-        std::vector<std::string> argv = {"paru"};
-        Glib::spawn_async_with_pipes(
-            ".", argv, Glib::SPAWN_DO_NOT_REAP_CHILD, sigc::slot<void>(), &pid, nullptr, nullptr, nullptr, &io_channel);
-
-        io_channel->set_flags(Glib::IOChannel::Flags::NONBLOCK);
-        Glib::signal_io().connect(sigc::bind(sigc::mem_fun(*this, &PackageManagerApp::on_paru_output), button, spinner, pid), io_channel->get_fd(), Glib::IOCondition(Glib::IOCondition::IN | Glib::IOCondition::HUP));
-    }
-
-    bool on_paru_output(Glib::IOCondition condition, Gtk::Button* button, Gtk::Spinner* spinner, Glib::Pid pid) {
-        if (static_cast<bool>(condition & Glib::IOCondition::HUP)) {
-            spinner->stop();
-            button->set_sensitive(true);
-            auto* check_image = Gtk::make_managed<Gtk::Image>("checkmark.png");
-            button->set_child(*check_image);
-            Glib::spawn_close_pid(pid);
-            return false;
-        }
-
-        if (static_cast<bool>(condition & Glib::IOCondition::IN)) {
-            char buffer[256];
-            gsize bytes_read;
-            io_channel->read(buffer, sizeof(buffer) - 1, bytes_read);
-            buffer[bytes_read] = '\0';
-            terminal_view->get_buffer()->insert_at_cursor(buffer);
-        }
-
-        return true;
-    }
-
     void on_terminal_button_clicked() {
+        // Terminalbereich sichtbar/unsichtbar schalten
         terminal_area->set_visible(!terminal_area->get_visible());
+    }
+
+    void run_terminal_command(const std::string& command) {
+        // Führen Sie den Befehl aus und fangen Sie sowohl stdout als auch stderr ein
+        Glib::RefPtr<Glib::IOChannel> stdout_channel, stderr_channel;
+
+        // Starten Sie den Subprozess mit Umleitung der Ausgaben
+        Glib::ChildProcess child_process(command, Glib::SpawnFlags::STDOUT_PIPE | Glib::SpawnFlags::STDERR_PIPE);
+        pid_t pid = child_process.get_pid();
+
+        // Holen Sie sich die Kanäle für stdout und stderr
+        stdout_channel = Glib::IOChannel::create_from_fd(child_process.get_stdout_fd());
+        stderr_channel = Glib::IOChannel::create_from_fd(child_process.get_stderr_fd());
+
+        // Setze Watcher für die Kanäle, um den Output zu lesen
+        stdout_channel->add_watch(Glib::IOCondition::READABLE, sigc::mem_fun(*this, &PackageManagerApp::on_subprocess_output));
+        stderr_channel->add_watch(Glib::IOCondition::READABLE, sigc::mem_fun(*this, &PackageManagerApp::on_subprocess_output));
+
+        child_process.spawn();
+    }
+
+    void on_subprocess_output(Glib::IOChannel* channel, Glib::IOCondition cond) {
+        if (cond & Glib::IOCondition::READABLE) {
+            std::string output;
+            channel->read_line(output);
+            terminal_area->get_buffer()->insert_at_cursor(output);
+        }
     }
 
     void save_state(Gtk::CheckButton* checkbox1, Gtk::CheckButton* checkbox2, Gtk::CheckButton* checkbox3, Gtk::CheckButton* checkbox4) {
@@ -184,9 +153,7 @@ protected:
     }
 
 private:
-    Gtk::ScrolledWindow* terminal_area{};
-    Gtk::TextView* terminal_view{};
-    Glib::RefPtr<Glib::IOChannel> io_channel;
+    Gtk::TextView* terminal_area{};  // Terminal ersetzt durch TextView
 
 public:
     static Glib::RefPtr<PackageManagerApp> create() {

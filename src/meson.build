@@ -1,9 +1,14 @@
-# src/meson.build
+project('package-manager', 'cpp', version: '0.1.0', default_options: ['cpp_std=c++20'])
 
-# Quellcode-Dateien
-package_manager_sources = [
-  'main.cpp',
-]
+# Standard-Dependencies für das Projekt
+gtk_dep = dependency('gtkmm-4.0', version: '>=4.0')
 
-# Erstelle die ausführbare Datei mit den entsprechenden Abhängigkeiten
-executable('package-manager', package_manager_sources)
+# Definiere den Quellcode-Ordner, in diesem Fall "src"
+src_dir = 'src'
+
+# Erstelle das ausführbare Ziel aus der Datei main.cpp im src-Ordner
+executable('package-manager',
+           src_dir / 'main.cpp',  # Pfad zur main.cpp
+           dependencies: [gtk_dep],  # Nur gtkmm-4.0 wird hier benötigt
+           install: true
+)

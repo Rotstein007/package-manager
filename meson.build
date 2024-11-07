@@ -1,27 +1,14 @@
-project('package-manager', ['cpp', 'c'],
-        version: '0.1.0',
-        meson_version: '>= 1.0.0',
-        default_options: ['warning_level=2', 'werror=false', 'cpp_std=gnu++2a'],
+project('package-manager', 'cpp', version: '0.1.0', default_options: ['cpp_std=c++20'])
+
+# Standard-Dependencies für das Projekt
+gtk_dep = dependency('gtkmm-4.0', version: '>=4.0')
+
+# Definiere den Quellcode-Ordner, in diesem Fall "src"
+src_dir = 'src'
+
+# Erstelle das ausführbare Ziel aus der Datei main.cpp im src-Ordner
+executable('package-manager',
+           src_dir / 'main.cpp',  # Pfad zur main.cpp
+           dependencies: [gtk_dep],  # Hier wird die gtkmm-4.0 Bibliothek hinzugefügt
+           install: true
 )
-
-# Definiere die Abhängigkeit für gtkmm-4.0
-gtkmm_dep = dependency('gtkmm-4.0', required: true)
-
-# Die Quellen des Projekts
-package_manager_sources = [
-    'src/main.cpp',
-]
-
-# Erstelle die ausführbare Datei mit den Abhängigkeiten
-executable('package-manager', package_manager_sources,
-           dependencies: gtkmm_dep,
-           install: true,
-)
-
-# Update the URL to the new repository
-git_clone_url = 'https://github.com/sass/sassc.git'
-git_branch = 'master'  # Use the correct branch name
-
-# Clone the repository
-git = find_program('git', required: true)
-run_command(git, 'clone', '--depth', '1', '--branch', git_branch, git_clone_url, 'sassc')
